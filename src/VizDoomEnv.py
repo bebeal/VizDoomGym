@@ -259,8 +259,6 @@ class DoomEnv(gym.Env):
         if self.down_sample != (self.game.get_screen_height(), self.game.get_screen_width()):
             screen_format = self.game.get_screen_format()
             if len(observation.shape) > 2 and (screen_format == vzd.ScreenFormat.CRCGCB or screen_format == vzd.ScreenFormat.CBCGCR):
-                # print(observation.shape)
-                # print(len(observation.shape))
                 observation = observation.transpose(1, 2, 0)  # CHW -> HWC
             observation = cv2.resize(observation, (self.down_sample[1], self.down_sample[0]), interpolation=cv2.INTER_LINEAR)
             if len(observation.shape) > 2 and (screen_format == vzd.ScreenFormat.CRCGCB or screen_format == vzd.ScreenFormat.CBCGCR):
