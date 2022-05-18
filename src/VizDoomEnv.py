@@ -113,8 +113,8 @@ class DoomEnv(gym.Env):
             self.lift_axis = -1
 
         # set action space
-        self.action_space = self.__parse_game_actions()
         self.no_encode_action = self.__has_delta_button() or multiple_buttons
+        self.action_space = self.__parse_game_actions()
 
         # init game
         try:
@@ -380,7 +380,7 @@ class DoomEnv(gym.Env):
         """
         :return: action space of environment, Box if delta button, Discrete if only binary buttons
         """
-        if self.__has_delta_button():
+        if self.no_encode_action:
             return spaces.Box(-np.inf, np.inf, (self.game.get_available_buttons_size(),))
         else:
             return spaces.Discrete(self.game.get_available_buttons_size())
