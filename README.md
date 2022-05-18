@@ -6,10 +6,8 @@ OpenAI Gym Wrapper for ViZDoom
 * Testing
 * Wrapper Classes
   * Pytorch
-  * Frameskip, etc
-* Custom Scenarios
+  * Framestack, etc
 * Rendering
-* Register via Gym
 
 ### References
 * [VizDoom](https://github.com/mwydmuch/ViZDoom)
