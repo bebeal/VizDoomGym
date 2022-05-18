@@ -2,30 +2,11 @@
 import random
 from VizDoomEnv import DoomEnv
 
-shoot = [1, 0, 0]
-right = [0, 1, 0]
-left = [0, 0, 1]
-actions = [shoot, right, left]
-
-env = DoomEnv(depth=True, labels=True, automap=True)
-print(env.observation_space)
-o = env.reset()
-
+env = DoomEnv("basic.cfg", down_sample=(120, 160), add_depth=True, add_automap=True, frame_stack=4)
+observation = env.reset()  # ((4, 3, 120, 160), (4, 1, 120, 160), (4, 3, 120, 160)) ~ (screen, depth, automap)
 for t in range(1000):
-    r, d, n_o, i = env.step(actions[random.randint(0, 2)])
+    reward, done, next_observation, info = env.step(random.randint(0, 2))
     env.render()
-    o = n_o
-    if d:
-        o = env.reset()
-
-env = DoomEnv()
-print(env.observation_space)
-o = env.reset()
-
-for t in range(1000):
-    r, d, n_o, i = env.step(random.randint(0, 2), one_hot=True)
-    env.render()
-    o = n_o
-    if d:
-        o = env.reset()
-
+    observation = next_observation
+    if done:
+        observation = env.reset()
