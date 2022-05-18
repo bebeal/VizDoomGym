@@ -73,7 +73,7 @@ Action Space: `Discrete(3)`
 env = DoomEnv("basic.cfg", add_depth=True, frame_stack=4)
 ```
 
-Observation Space Shapes: `Tuple((4, 3, 240, 320), (4, 1, 240, 320))` $$\sim$$ Buffers: `Tuple(screen, depth)`
+Observation Space Shapes: `Tuple((4, 3, 240, 320), (4, 1, 240, 320))` <img src="https://render.githubusercontent.com/render/math?math=\sim"> Buffers: `Tuple(screen, depth)`
 
 Action Space: `Discrete(3)`
 
@@ -83,7 +83,7 @@ Action Space: `Discrete(3)`
 env = DoomEnv("basic.cfg", down_sample=(120, 160), add_depth=True, add_automap=True, add_audio=True, frame_stack=4) 
 ```
 
-Observation Space Shapes: `Tuple((4, 3, 120, 160), (4, 1, 120, 160), (4, 3, 120, 160), (4, 5040, 2))` $$\sim$$ Buffers: `Tuple(screen, depth, automap, audio)`
+Observation Space Shapes: `Tuple((4, 3, 120, 160), (4, 1, 120, 160), (4, 3, 120, 160), (4, 5040, 2))` <img src="https://render.githubusercontent.com/render/math?math=\sim"> Buffers: `Tuple(screen, depth, automap, audio)`
 
 Action Space: `Discrete(3)`
 
@@ -94,7 +94,7 @@ Action Space: `Discrete(3)`
 env = DoomEnv("basic_GRAY8.cfg", down_sample=(120, 160), add_depth=True, add_automap=True, add_audio=True, frame_stack=4, frame_skip=4) 
 ```
 
-Observation Space Shapes: `Tuple((4, 120, 160, 1), (4, 120, 160, 1), (4, 120, 160, 1), (4, 5040, 2))` $$\sim$$ Buffers: `Tuple(screen, depth, automap, audio)`
+Observation Space Shapes: `Tuple((4, 120, 160, 1), (4, 120, 160, 1), (4, 120, 160, 1), (4, 5040, 2))` <img src="https://render.githubusercontent.com/render/math?math=\sim"> Buffers: `Tuple(screen, depth, automap, audio)`
 
 Action Space: `Discrete(3)`
 
