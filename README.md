@@ -100,8 +100,8 @@ Action Space: `Discrete(3)`
 
 
 ### TODO:
-* Rendering
 * Better FrameStacking for multiple buffers, avoid loops
+* Cleanup screen format stuff
 
 ### References
 * [VizDoom](https://github.com/mwydmuch/ViZDoom)

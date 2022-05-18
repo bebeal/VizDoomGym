@@ -1,5 +1,4 @@
 from os import path
-import PIL.Image
 from collections import deque
 import numpy as np
 import gym
@@ -8,6 +7,7 @@ import vizdoom.vizdoom as vzd
 from utils import LazyFrames
 import torch
 import cv2
+import pygame
 
 BASE_PATH = "scenarios"
 
@@ -33,6 +33,11 @@ SCREEN_FORMATS = [
      vzd.ScreenFormat.RGBA32, vzd.ScreenFormat.ARGB32, vzd.ScreenFormat.BGRA32, vzd.ScreenFormat.ABGR32]
 ]
 
+# A fixed set of colors for each potential label
+# for rendering an image.
+# 256 is not nearly enough for all IDs, but we limit
+# ourselves here to avoid hogging too much memory.
+LABEL_COLORS = np.random.default_rng(42).uniform(25, 256, size=(256, 3)).astype(np.uint8)
 
 class DoomEnv(gym.Env):
     def __init__(self, config, frame_skip=1, frame_stack=1, down_sample=(None, None), to_torch=True,
@@ -61,6 +66,8 @@ class DoomEnv(gym.Env):
         self.game = vzd.DoomGame()
         self.game.load_config(config_path)
         self.game.set_window_visible(False)
+        self.window_surface = None
+        self.isopen = True
 
         self.frame_skip = frame_skip
         self.frame_stack = frame_stack
@@ -132,7 +139,87 @@ class DoomEnv(gym.Env):
         return observation, reward, done, info
 
     def render(self, mode="human"):
-        pass
+        render_image = self.__build_human_render_image()
+        if mode == "rgb_array":
+            return render_image
+        elif mode == "human":
+            render_image = render_image.transpose(1, 0, 2)  # HWC -> WHC
+            if self.window_surface is None:
+                pygame.init()
+                pygame.display.set_caption("ViZDoom")
+                self.window_surface = pygame.display.set_mode(render_image.shape[:2])
+
+            surf = pygame.surfarray.make_surface(render_image)
+            self.window_surface.blit(surf, (0, 0))
+            pygame.display.update()
+        else:
+            return self.isopen
+
+    def __build_human_render_image(self):
+        """
+        Stack all available buffers into one for human consumption
+        """
+        game_state = self.game.get_state()
+        valid_buffers = game_state is not None
+
+        if not valid_buffers:
+            # Return a blank image
+            num_enabled_buffers = 1 + self.has_depth + self.has_labels + self.has_automap
+            img = np.zeros(
+                (self.game.get_screen_height(), self.game.get_screen_width() * num_enabled_buffers, 3,), dtype=np.uint8
+            )
+            return img
+
+        screen_buffer = game_state.screen_buffer
+        screen_format = self.game.get_screen_format()
+        if screen_format == vzd.ScreenFormat.GRAY8 or screen_format == vzd.ScreenFormat.DOOM_256_COLORS8:
+            screen_buffer = np.repeat(np.expand_dims(screen_buffer, axis=self.lift_axis), repeats=3, axis=self.lift_axis)
+        if screen_format == vzd.ScreenFormat.RGBA32 or screen_format == vzd.ScreenFormat.BGRA32:
+            screen_buffer = screen_buffer[:, :, :3]
+        if screen_format == vzd.ScreenFormat.ABGR32 or screen_format == vzd.ScreenFormat.ARGB32:
+            screen_buffer = screen_buffer[:, :, 1:]
+        image_list = [screen_buffer]
+
+        if self.has_depth:
+            image_list.append(np.repeat(np.expand_dims(game_state.depth_buffer, axis=self.lift_axis), repeats=3, axis=self.lift_axis))
+
+        if self.has_labels:
+            # Give each label a fixed color.
+            # We need to connect each pixel in labels_buffer to the corresponding
+            # id via `value``
+            labels_rgb = np.zeros_like(screen_buffer)
+            labels_buffer = game_state.labels_buffer
+            for label in game_state.labels:
+                color = LABEL_COLORS[label.object_id % 256]
+                if self.screen_type == 0:
+                    color = np.expand_dims(color, axis=-1)
+                    labels_rgb[:, labels_buffer == label.value] = color
+                else:
+                    labels_rgb[labels_buffer == label.value] = color
+            image_list.append(labels_rgb)
+
+        if self.has_automap:
+            automap = game_state.automap_buffer
+            if screen_format == vzd.ScreenFormat.GRAY8 or screen_format == vzd.ScreenFormat.DOOM_256_COLORS8:
+                automap = np.repeat(np.expand_dims(automap, axis=self.lift_axis), repeats=3, axis=self.lift_axis)
+            if screen_format == vzd.ScreenFormat.RGBA32 or screen_format == vzd.ScreenFormat.BGRA32:
+                automap = automap[:, :, :3]
+            if screen_format == vzd.ScreenFormat.ABGR32 or screen_format == vzd.ScreenFormat.ARGB32:
+                automap = automap[:, :, 1:]
+            image_list.append(automap)
+
+        if self.screen_type == 0:
+            for i in range(len(image_list)):
+                image_list[i] = image_list[i].transpose(1, 2, 0)  # CHW -> HWC
+        return np.concatenate(image_list, axis=1)
+
+    def close(self):
+        if self.window_surface:
+            pygame.quit()
+            self.isopen = False
+
+    def __exit__(self):
+        self.close()
 
     def __append_observation_buffers(self):
         """
@@ -168,10 +255,12 @@ class DoomEnv(gym.Env):
         """
         if self.down_sample != (self.game.get_screen_height(), self.game.get_screen_width()):
             screen_format = self.game.get_screen_format()
-            if len(observation.shape) > 2 and screen_format == vzd.ScreenFormat.CRCGCB or screen_format == vzd.ScreenFormat.CBCGCR:
+            if len(observation.shape) > 2 and (screen_format == vzd.ScreenFormat.CRCGCB or screen_format == vzd.ScreenFormat.CBCGCR):
+                # print(observation.shape)
+                # print(len(observation.shape))
                 observation = observation.transpose(1, 2, 0)  # CHW -> HWC
             observation = cv2.resize(observation, (self.down_sample[1], self.down_sample[0]), interpolation=cv2.INTER_LINEAR)
-            if len(observation.shape) > 2 and screen_format == vzd.ScreenFormat.CRCGCB or screen_format == vzd.ScreenFormat.CBCGCR:
+            if len(observation.shape) > 2 and (screen_format == vzd.ScreenFormat.CRCGCB or screen_format == vzd.ScreenFormat.CBCGCR):
                 observation = observation.transpose(2, 0, 1)  # HWC -> CHW
         if len(observation.shape) == 2:
             observation = np.expand_dims(observation, axis=self.lift_axis)  # HW -> HW1//1HW
@@ -217,11 +306,10 @@ class DoomEnv(gym.Env):
                 obs_space = [obs_space]
 
             for space in obs_space:
-                observation.append(self.__to_torch(np.zeros(space.shape, dtype=space.dtype)))
+                observation.append(self.__to_torch(np.zeros(space.shape[1:], dtype=space.dtype)))
 
         if len(observation) == 1:
             observation = observation[0]
-
         return observation
 
     def __get_info(self):
@@ -374,6 +462,3 @@ class DoomEnv(gym.Env):
                 self.info_idxs[info_idx] = i
                 info_idx += 1
         return position_idx, health_idx, ammo_idx, info_idx
-
-    def __exit__(self):
-        self.close()
