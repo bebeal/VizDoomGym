@@ -50,6 +50,9 @@ class DoomEnv(gym.Env):
         :param frame_stack:          Stacks frames, default: 1
         :param down_sample:          Down samples (BILINEAR) observation buffers, default: No down sampling
         :param to_torch:             Returns PyTorch Tensors over NumPy Arrays, default: True
+        :param multiple_buttons:     Determines whether or not to one hot encode the action sent to the environment. If
+                                     using delta buttons and/or you want to allow multiple buttons to be selected at
+                                     once, set this to True and one hot encode the action yourself before calling step.
         :param add_depth:            Adds depth buffer to observation
         :param add_labels:           Adds labels buffer to observation
         :param add_automap:          Adds automap buffer to observation

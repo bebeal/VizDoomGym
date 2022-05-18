@@ -138,8 +138,8 @@ def action_space_test():
 
 def run_test():
     """
-    Assumes `basic<#>.cfg` exists (in scenarios directory) from <#> range [0, 9] where each screen type follows
-    according to SCREEN_FORMATS and basic1.cfg has a delta action
+    Assumes `basic<#>.cfg` exists (in scenarios directory) from <#> range [0, 9] where each screen type corresponds to
+    the ones in SCREEN_FORMATS and basic1.cfg has a delta action
     """
     screen_test()
     frame_stack_test()
