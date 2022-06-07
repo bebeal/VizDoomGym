@@ -1,6 +1,10 @@
 # VizDoomGym
 Custom Gym Wrapper for ViZDoom
 
+
+https://user-images.githubusercontent.com/42706447/172284590-5dc353e6-a9fd-468b-84db-0bb7cc8c1119.mp4
+
+
 ## Features
 
 * All ViZDoom Screen Types
