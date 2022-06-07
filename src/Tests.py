@@ -28,9 +28,9 @@ expected_types = [
     [np.uint8,
     np.uint8, np.uint8,
     np.uint8],
-    [torch.uint8,
-    torch.uint8, torch.uint8,
-    torch.uint8]
+    [torch.float32,
+    torch.float32, torch.float32,
+    torch.float32]
 ]
 
 

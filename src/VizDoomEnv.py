@@ -40,7 +40,7 @@ SCREEN_FORMATS = [
 LABEL_COLORS = np.random.default_rng(42).uniform(25, 256, size=(256, 3)).astype(np.uint8)
 
 class DoomEnv(gym.Env):
-    def __init__(self, config, frame_skip=1, frame_stack=1, down_sample=(None, None), to_torch=True,
+    def __init__(self, config, frame_skip=1, frame_stack=1, down_sample=(None, None), to_torch=True, normalize=True,
                  multiple_buttons=False, add_depth=False, add_labels=False, add_automap=False, add_audio=False,
                  add_position_vars=False, add_health_vars=False, add_ammo_vars=False,
                  add_info_vars=[]):
@@ -80,6 +80,7 @@ class DoomEnv(gym.Env):
             down_sample = (down_sample[0], self.game.get_screen_width())
         self.down_sample = down_sample
         self.to_torch = to_torch
+        self.normalize = normalize
 
         # Determine which buffers/variables to enable/already enabled via the config
         self.has_depth = add_depth or self.game.is_depth_buffer_enabled()
@@ -272,9 +273,10 @@ class DoomEnv(gym.Env):
         Converts observation to PyTorch Tensor
         """
         if self.to_torch:
-            return torch.from_numpy(observation)
-        else:
-            return observation
+            observation = torch.from_numpy(observation)
+        if self.normalize:
+            observation = observation.float() / 255.
+        return observation
 
     def __get_single_observation(self):
         """
@@ -324,7 +326,7 @@ class DoomEnv(gym.Env):
                 info[str(self.info_vars[i])] = np.array([state.game_variables[self.info_idxs[i]]])
             return info
         else:
-            return None
+            return {}
 
     def __one_hot_encode_action(self, action):
         """
@@ -353,6 +355,9 @@ class DoomEnv(gym.Env):
         if self.has_automap:
             # channels = C, shape: CHW//HWC
             self.game.set_automap_buffer_enabled(True)
+            self.game.set_automap_mode(vzd.AutomapMode.OBJECTS)
+            self.game.set_automap_rotate(False)
+            self.game.set_automap_render_textures(False)
             observation_space.append(self.__get_screen_box(self.game.get_screen_channels()))
         if self.has_audio:
             # C = 1260 audio buffer size, shape: C2
