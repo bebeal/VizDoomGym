@@ -1,7 +1,7 @@
 # VizDoomGym
 Custom Gym Wrapper for ViZDoom
 
-https://user-images.githubusercontent.com/42706447/172284590-5dc353e6-a9fd-468b-84db-0bb7cc8c1119.mp4
+https://user-images.githubusercontent.com/42706447/173233122-ac993c3a-fdeb-4137-ba5a-47b59f7ce14f.mp4
 
 <sub><sup>(Buffers: Screen, Depth, Label, Automap)</sub></sup>
 
