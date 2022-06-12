@@ -266,6 +266,8 @@ class DoomEnv(gym.Env):
                 observation = observation.transpose(2, 0, 1)  # HWC -> CHW
         if len(observation.shape) == 2:
             observation = np.expand_dims(observation, axis=self.lift_axis)  # HW -> HW1//1HW
+        if self.normalize:
+            observation = observation.astype(dtype=np.float32) / 255.
         return observation
 
     def __to_torch(self, observation):
@@ -274,8 +276,6 @@ class DoomEnv(gym.Env):
         """
         if self.to_torch:
             observation = torch.from_numpy(observation)
-        if self.normalize:
-            observation = observation.float() / 255.
         return observation
 
     def __get_single_observation(self):
