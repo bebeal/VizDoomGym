@@ -1,7 +1,11 @@
 # VizDoomGym
 Highly Customizable Gym interface for ViZDoom.
 
-https://user-images.githubusercontent.com/42706447/175816675-52da2192-e5b3-4ceb-94e3-f3b75db23186.mp4
+
+
+https://user-images.githubusercontent.com/42706447/175821475-e6702247-0257-4d5c-aef7-351b7b5adfb5.mp4
+
+
 
 <sub><sup>(Rendered Buffers: Screen, Depth, Label, Automap, Audio)</sub></sup>
 
