@@ -8,3 +8,5 @@ scenarios
 assets
 openal-soft
 test.py
+vizdoomgym.egg-info
+_scenarios

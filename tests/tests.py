@@ -2,12 +2,29 @@ import os
 import random
 import torch
 import time
-from vizdoomenv import DoomEnv
+from vizdoomgym.vizdoomenv import DoomEnv
 import os
 import numpy as np
 from gym.spaces import Box, MultiDiscrete, Discrete, Tuple, Dict
+import vizdoom.vizdoom as vzd
 
-test_env_configs = os.path.abspath("./test_scenarios")
+test_env_configs = os.path.abspath("./tests/test_scenarios")
+
+POSITION_BUFFER = [vzd.GameVariable.POSITION_X, vzd.GameVariable.POSITION_Y,
+                   vzd.GameVariable.POSITION_Z, vzd.GameVariable.ANGLE]
+
+HEALTH_BUFFER = [vzd.GameVariable.HEALTH, vzd.GameVariable.ARMOR]
+
+AMMO_BUFFER = [vzd.GameVariable.AMMO0,
+               vzd.GameVariable.AMMO1,
+               vzd.GameVariable.AMMO2,
+               vzd.GameVariable.AMMO3,
+               vzd.GameVariable.AMMO4,
+               vzd.GameVariable.AMMO5,
+               vzd.GameVariable.AMMO6,
+               vzd.GameVariable.AMMO7,
+               vzd.GameVariable.AMMO8,
+               vzd.GameVariable.AMMO9]
 
 
 def get_scenario_path(scenario_name):
@@ -24,8 +41,8 @@ def test_observation_space(env, expected_shape, expected_types=np.uint8, to_torc
         max_value = 255
         sound_min_value = -1
         sound_max_value = 1
-        pha_buffers_min_value = -np.inf
-        pha_buffers_max_value = np.inf
+        pha_buffers_min_value = np.finfo(np.float32).min
+        pha_buffers_max_value = np.finfo(np.float32).max
         expected_observation_space = Tuple([Box(sound_min_value if expected_shape[i][1:]==(1260*4, 2) else min_value if len(expected_shape[i]) > 2 else pha_buffers_min_value, sound_max_value if expected_shape[i][1:]==(1260*4, 2) else max_value if len(expected_shape[i]) > 2 else pha_buffers_max_value, shape=expected_shape[i], dtype=expected_types[i]) for i in range(len(expected_shape))])
 
     obs = env.reset()
@@ -76,21 +93,18 @@ def get_env(screen_type, buffers, num_binary, num_delta, to_torch=False, no_sing
     add_audio_buffer = False
     if int(buffers[3]):
         add_audio_buffer = True
-    add_position_buffer = False
+    game_vars = []
     if int(buffers[4]):
-        add_position_buffer = True
-    add_health_buffer = False
+        game_vars += POSITION_BUFFER
     if int(buffers[5]):
-        add_health_buffer = True
-    add_ammo_buffer = False
+        game_vars += HEALTH_BUFFER
     if int(buffers[6]):
-        add_ammo_buffer = True
+        game_vars += AMMO_BUFFER
     env_name = "basic_" + screen_type + "_0000000" + "_" + str(num_binary) + "_" + str(num_delta)
     return DoomEnv(scenarios=get_scenario_path(env_name), to_torch=to_torch, no_single_channel=no_single_channel,
-                   frame_stack=frame_stack, down_sample=down_sample, add_depth_buffer=add_depth_buffer,
+                   frame_stack=frame_stack, image_size=down_sample, add_depth_buffer=add_depth_buffer,
                    add_labels_buffer=add_labels_buffer, add_automap_buffer=add_automap_buffer,
-                   add_audio_buffer=add_audio_buffer, add_position_buffer=add_position_buffer,
-                   add_health_buffer=add_health_buffer, add_ammo_buffer=add_ammo_buffer,
+                   add_audio_buffer=add_audio_buffer, add_game_vars_buffer=game_vars,
                    encode_action=encode_action, max_buttons_pressed=max_buttons_pressed)
 
 
@@ -121,9 +135,6 @@ def test_multiple_buffer_observation_space():
                         (1, 240, 320, 1),
                         (1, 240, 320, 3),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -132,9 +143,6 @@ def test_multiple_buffer_observation_space():
                         (4, 240, 320, 1),
                         (4, 240, 320, 3),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ],
                 # shapes when no_single_channel=True (should enforce (NCHW|NHWC) -> NHW if C==1)
@@ -146,9 +154,6 @@ def test_multiple_buffer_observation_space():
                         (1, 240, 320),
                         (1, 240, 320, 3),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -157,9 +162,6 @@ def test_multiple_buffer_observation_space():
                         (4, 240, 320),
                         (4, 240, 320, 3),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ]
             ],
@@ -174,9 +176,6 @@ def test_multiple_buffer_observation_space():
                         (1, 240, 320, 1),
                         (1, 240, 320, 1),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -185,9 +184,6 @@ def test_multiple_buffer_observation_space():
                         (4, 240, 320, 1),
                         (4, 240, 320, 1),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ],
                 # shapes when no_single_channel=True (should enforce (NCHW|NHWC) -> NHW if C==1)
@@ -199,9 +195,6 @@ def test_multiple_buffer_observation_space():
                         (1, 240, 320),
                         (1, 240, 320),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -210,9 +203,6 @@ def test_multiple_buffer_observation_space():
                         (4, 240, 320),
                         (4, 240, 320),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ]
             ]
@@ -230,9 +220,6 @@ def test_multiple_buffer_observation_space():
                         (1, 1, 240, 320),
                         (1, 3, 240, 320),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -241,9 +228,6 @@ def test_multiple_buffer_observation_space():
                         (4, 1, 240, 320),
                         (4, 3, 240, 320),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ],
                 # shapes when no_single_channel=True (should enforce (NCHW|NHWC) -> NHW if C==1)
@@ -255,9 +239,6 @@ def test_multiple_buffer_observation_space():
                         (1, 240, 320),
                         (1, 3, 240, 320),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -266,9 +247,6 @@ def test_multiple_buffer_observation_space():
                         (4, 240, 320),
                         (4, 3, 240, 320),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ]
             ],
@@ -283,9 +261,6 @@ def test_multiple_buffer_observation_space():
                         (1, 1, 240, 320),
                         (1, 1, 240, 320),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -294,9 +269,6 @@ def test_multiple_buffer_observation_space():
                         (4, 1, 240, 320),
                         (4, 1, 240, 320),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ],
                 # shapes when no_single_channel=True (should enforce (NCHW|NHWC) -> NHW if C==1)
@@ -308,9 +280,6 @@ def test_multiple_buffer_observation_space():
                         (1, 240, 320),
                         (1, 240, 320),
                         (1, 1260*4, 2),
-                        (1, 4),
-                        (1, 2),
-                        (1, 10)
                     ],
                     # shapes when frame_stack == 4
                     [
@@ -319,14 +288,12 @@ def test_multiple_buffer_observation_space():
                         (4, 240, 320),
                         (4, 240, 320),
                         (4, 1260*4, 2),
-                        (4, 4),
-                        (4, 2),
-                        (4, 10)
                     ]
                 ]
             ]
         ]
     ]
+    GAME_VAR_SIZES = [4, 2, 10]
     for to_torch in [False, True]:
         for screen_type in ["rgb", "g8"]:
             for no_single_channel in [False, True]:
@@ -337,13 +304,20 @@ def test_multiple_buffer_observation_space():
                                       no_single_channel=no_single_channel, frame_stack=frame_stack)
                         buf_shapes = buffer_shapes[to_torch][screen_type == "g8"][no_single_channel][frame_stack == 4]
                         expected_shape = [buf_shapes[0]]
-                        expected_shape += [buf_shapes[i+1] for i in range(len(buffers)) if int(buffers[i])]
+                        expected_shape += [buf_shapes[i+1] for i in range(len(buffers)-3) if int(buffers[i])]
                         if to_torch:
                             types = [np.float32]
                             types += [np.float32 for i in range(len(buffers)) if int(buffers[i])]
                         else:
                             types = [np.uint8]
-                            types += [np.uint8 if (i <= 2) else np.float32 if (i >= 4) else np.int16 for i in range(len(buffers)) if int(buffers[i])]
+                            types += [np.uint8 if (i <= 2) else np.float32 if (i >= 4) else np.int16 for i in range(len(buffers)-3) if int(buffers[i])]
+                        game_var_buffers = 0
+                        for i in range(3, 0, -1):
+                            if int(buffers[-i]):
+                                game_var_buffers += GAME_VAR_SIZES[3-i]
+                        if game_var_buffers > 0:
+                            expected_shape += [(frame_stack,game_var_buffers)]
+                            types += [np.float32]
                         test_observation_space(env, tuple(expected_shape), expected_types=types, to_torch=to_torch)
     test_passed()
 

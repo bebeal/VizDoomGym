@@ -2,32 +2,17 @@ import itertools
 import warnings
 from os import path
 from collections import deque
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 import numpy as np
 import gym
 from gym import spaces
 import vizdoom.vizdoom as vzd
-import utils
-from utils import LazyFrames
+import vizdoomgym.utils
+from vizdoomgym.utils import LazyFrames
 import torch
 import cv2
 import pygame
-
-POSITION_BUFFER = [vzd.GameVariable.POSITION_X, vzd.GameVariable.POSITION_Y,
-                   vzd.GameVariable.POSITION_Z, vzd.GameVariable.ANGLE]
-
-HEALTH_BUFFER = [vzd.GameVariable.HEALTH, vzd.GameVariable.ARMOR]
-
-AMMO_BUFFER = [vzd.GameVariable.AMMO0,
-               vzd.GameVariable.AMMO1,
-               vzd.GameVariable.AMMO2,
-               vzd.GameVariable.AMMO3,
-               vzd.GameVariable.AMMO4,
-               vzd.GameVariable.AMMO5,
-               vzd.GameVariable.AMMO6,
-               vzd.GameVariable.AMMO7,
-               vzd.GameVariable.AMMO8,
-               vzd.GameVariable.AMMO9]
+from vizdoom import scenarios_path
 
 # A fixed set of colors for each potential label
 # for rendering an image.
@@ -44,7 +29,7 @@ class DoomEnv(gym.Env):
                  no_single_channel=False,
                  frame_skip: int = 1,
                  frame_stack: int = 1,
-                 down_sample: Union[int, Tuple[int], Tuple[int, int]] = (None, None),
+                 image_size: Union[int, Tuple[int], Tuple[int, int], List[int]] = (None, None),
                  to_torch: bool = True,
                  normalize: bool = False,
                  max_buttons_pressed: int = 0,
@@ -53,14 +38,11 @@ class DoomEnv(gym.Env):
                  add_labels_buffer: bool = False,
                  add_automap_buffer: bool = False,
                  add_audio_buffer: bool = False,
-                 add_position_buffer: bool = False,
-                 add_health_buffer: bool = False,
-                 add_ammo_buffer: bool = False,
-                 add_info_vars: Union[vzd.GameVariable, Tuple[vzd.GameVariable, ...]] = (),
+                 add_game_vars_buffer: Union[vzd.GameVariable, Tuple[vzd.GameVariable, ...], List[vzd.GameVariable]] = (),
                  shuffle_scenarios: float = 0.,
                  shuffle_assets: float = 0.,
                  shuffle_difficulty: float = 0.,
-                 render_buffers: Tuple[int, ...] = None
+                 render_buffers: Union[Tuple[int, ...], List[int]] = None
                  ):
         """
         Highly Customizable Gym interface for ViZDoom.
@@ -79,7 +61,7 @@ class DoomEnv(gym.Env):
                                     Default 1.
                                     Discards the single oldest frame, and appends on a single fresh frame per call to
                                     `step()`
-        :param down_sample:         Resolution of image buffer, overrides value set in scenario file.
+        :param image_size:          Resolution of image buffer, overrides value set in scenario file.
                                     Default: (None, None).
                                     If None for either value or both, uses the values specified in the scenario file.
         :param to_torch:            Whether to change the numpy observations to torch tensors. Default: True.
@@ -96,9 +78,9 @@ class DoomEnv(gym.Env):
                                     `step(action)`.
                                     Default: False. (Not used by default).
                                     If True:
-                                        Action space can be a single one of binary/continuous action space, or a Dict
+                                        Action space can be a single one of binary/continuous action space, or a Tuple
                                         containing both.
-                                        "binary":
+                                        "binary"":
                                             if max_buttons_pressed == 0: MultiDiscrete([2] * num_binary_buttons)
                                             if max_buttons_pressed > 1: Discrete(n) where n is the number of environment actions that have
                                                                         0 <= max_buttons_pressed bits set
@@ -120,17 +102,8 @@ class DoomEnv(gym.Env):
         :param add_audio_buffer:    Whether to add the audio_buffer to the observation_space. Default: False.
                                     If True: overrides value set in scenario file,
                                     else: uses setting specified in scenario file.
-        :param add_position_buffer: Whether to add the POSITION_BUFFER to the observation_space. Default: False.
-                                    If True: add them as game_variables
-                                    else: uses game_variables specified in scenario file.
-        :param add_health_buffer:   Whether to add the HEALTH_BUFFER to the observation_space. Default: False.
-                                    If True: add them as game_variables
-                                    else: uses game_variables specified in scenario file.
-        :param add_ammo_buffer:     Whether to add the AMMO_BUFFER to the observation_space. Default: False.
-                                    If True: add them as game_variables
-                                    else: uses game_variables specified in scenario file.
-        :param add_info_vars:       Enables and adds these game_variables to the game state, passed back via `info` in
-                                    `step()`. Default: ().
+        :param add_game_vars_buffer:Enables and adds these game_variables to the game state, passed back via an
+                                    observation buffer in `step()`. Default: ().
                                     Unless these variables are already specified in the scenario file this will not add
                                     these variables to the observation, only the info.
         :param shuffle_scenarios:   Probability to randomize the scenario per call to `reset()`. Default: 0.
@@ -156,12 +129,12 @@ class DoomEnv(gym.Env):
             scenarios = (scenarios, )
         if isinstance(assets, str):
             assets = (assets, )
-        if isinstance(down_sample, int):
-            down_sample = (down_sample, down_sample)
-        if len(down_sample) == 1:
-            down_sample = (down_sample[0], down_sample[0])
-        if not isinstance(add_info_vars, tuple):
-            add_info_vars = (add_info_vars,)
+        if isinstance(image_size, int):
+            image_size = (image_size, image_size)
+        if len(image_size) == 1:
+            image_size = (image_size[0], image_size[0])
+        if not isinstance(add_game_vars_buffer, tuple) and not isinstance(add_game_vars_buffer, list):
+            add_game_vars_buffer = (add_game_vars_buffer,)
 
         if len(scenarios) == 0:
             raise RuntimeError(f"Must specify atleast 1 scenario")
@@ -179,7 +152,7 @@ class DoomEnv(gym.Env):
         self.no_single_channel = no_single_channel
         self.frame_skip = frame_skip
         self.frame_stack = frame_stack
-        self.down_sample = down_sample
+        self.image_size = image_size
         self.to_torch = to_torch
         self.normalize = normalize
         self.max_buttons_pressed = max_buttons_pressed
@@ -199,18 +172,18 @@ class DoomEnv(gym.Env):
                 asset_idx = 0
             self.__load_asset(asset_idx)
         self.__load_ini(ini)
-        if down_sample[0] is None:
-            down_sample = (self.game.get_screen_height(), down_sample[1])
-        if down_sample[1] is None:
-            down_sample = (down_sample[0], self.game.get_screen_width())
-        self.down_sample = down_sample
-        self.__set_buffers(add_depth_buffer, add_labels_buffer, add_automap_buffer, add_audio_buffer,
-                           add_position_buffer, add_health_buffer, add_ammo_buffer, add_info_vars)
+        if image_size[0] is None:
+            image_size = (self.game.get_screen_height(), image_size[1])
+        if image_size[1] is None:
+            image_size = (image_size[0], self.game.get_screen_width())
+        self.image_size = image_size
+        self.__set_buffers(add_depth_buffer, add_labels_buffer, add_automap_buffer, add_audio_buffer, add_game_vars_buffer)
         self.__set_observation_space()
         self.__set_action_space()
         self.__init_game()
 
     def reset(self, *, seed=None, return_info=False, options=None):
+        super().reset(seed=seed)
         if self.shuffle_scenarios or self.shuffle_assets or self.shuffle_difficulty:
             # with probability shuffle_scenarios, change the scenario
             shuffle_scenario = self.shuffle_scenarios and torch.rand(1)[0].item() < self.shuffle_scenarios
@@ -239,18 +212,17 @@ class DoomEnv(gym.Env):
         if not return_info:
             return observation
         else:
-            return observation, self.__get_info()
+            return observation, {}
 
     def step(self, action):
-        info = self.__get_info()
         if self.encode_action:
             assert self.action_space.contains(action), f"{action!r} ({type(action)}) invalid"
             action = self.__build_env_action(action)
         reward = self.game.make_action(action, self.frame_skip)
-        done = int(self.game.is_episode_finished())
+        done = self.game.is_episode_finished()
         self.__append_new_frame()
         observation = self.__get_stacked_observation_frames()
-        return observation, reward, done, info
+        return observation, reward, done, {}
 
     def render(self, mode="human"):
         render_image = self.__build_human_render_image()
@@ -285,15 +257,13 @@ class DoomEnv(gym.Env):
         return {"observation_space": self.observation_space.__repr__(), "action_space": self.action_space.__repr__(),
                 "scenarios": self.scenarios, "assets":self.assets, "ini":self.ini,
                 "no_single_channel":self.no_single_channel, "frame_skip": self.frame_skip,
-                "frame_stack": self.frame_stack, "down_sample": self.down_sample, "to_torch": self.to_torch,
+                "frame_stack": self.frame_stack, "image_size": self.image_size, "to_torch": self.to_torch,
                 "normalize": self.normalize, "max_buttons_pressed": self.max_buttons_pressed,
                 "encode_action": self.encode_action, "has_depth_buffer": self.has_depth_buffer,
                 "has_labels_buffer": self.has_labels_buffer, "has_automap_buffer": self.has_automap_buffer,
-                "has_audio_buffer": self.has_audio_buffer, "add_position_buffer": self.num_position_buffer,
-                "add_health_buffer": self.num_health_buffer, "add_ammo_buffer": self.num_ammo_buffer,
-                "info_vars": self.info_vars, "shuffle_assets": self.shuffle_assets,
-                "shuffle_scenarios": self.shuffle_scenarios, "shuffle_difficulty": self.shuffle_difficulty,
-                "render_buffers": self.render_buffers}
+                "has_audio_buffer": self.has_audio_buffer, "add_game_vars": self.add_game_vars_buffer,
+                "shuffle_assets": self.shuffle_assets, "shuffle_scenarios": self.shuffle_scenarios,
+                "shuffle_difficulty": self.shuffle_difficulty, "render_buffers": self.render_buffers}
 
     """
     Lower level functions beneath this point
@@ -335,8 +305,7 @@ class DoomEnv(gym.Env):
             if scenario_idx < 0:
                 scenario_idx = torch.randint(low=0, high=len(self.scenarios), size=(1,))[0].item()
             scenario_name = self.scenarios[scenario_idx]
-            if "/" not in scenario_name:
-                scenario_name = path.join("./scenarios", scenario_name)
+            scenario_name = path.join(scenarios_path, scenario_name)
             if path.exists(scenario_name):
                 self.scenario_name = scenario_name
                 self.scenario_idx = scenario_idx
@@ -381,39 +350,39 @@ class DoomEnv(gym.Env):
             else:
                 warnings.warn(f"Can't find .ini at {ini}")
 
-    def __set_buffers(self, add_depth_buffer, add_labels_buffer, add_automap_buffer, add_audio_buffer,
-                      add_position_buffer, add_health_buffer, add_ammo_buffer, add_info_vars):
+    def __set_buffers(self, add_depth_buffer, add_labels_buffer, add_automap_buffer, add_audio_buffer, add_game_vars_buffer):
         """
         Determine which buffers/game_variables to enable or are already enabled via the scenario file
         """
         self.has_depth_buffer = add_depth_buffer or self.game.is_depth_buffer_enabled()
+        if self.has_depth_buffer:
+            self.game.set_depth_buffer_enabled(True)
         self.has_labels_buffer = add_labels_buffer or self.game.is_labels_buffer_enabled()
+        if self.has_labels_buffer:
+            self.game.set_labels_buffer_enabled(True)
         self.has_automap_buffer = add_automap_buffer or self.game.is_automap_buffer_enabled()
+        if self.has_automap_buffer:
+            self.game.set_automap_buffer_enabled(True)
+            self.game.set_automap_mode(vzd.AutomapMode.OBJECTS)
+            self.game.set_automap_rotate(False)
         self.has_audio_buffer = add_audio_buffer or self.game.is_audio_buffer_enabled()
-        if add_position_buffer:
-            self.__add_game_variables(POSITION_BUFFER)
-        if add_health_buffer:
-            self.__add_game_variables(HEALTH_BUFFER)
-        if add_ammo_buffer:
-            self.__add_game_variables(AMMO_BUFFER)
-        if len(add_info_vars) != 0:
-            self.__add_game_variables(add_info_vars)
-        # determine index of game variables
-        self.num_position_buffer, self.num_health_buffer, self.num_ammo_buffer, self.num_game_buffer, self.num_info_vars = self.__parse_game_variables(add_info_vars)
-        self.info_vars = add_info_vars
+        if self.has_audio_buffer:
+            self.game.set_audio_buffer_enabled(True)
+            self.game.set_audio_sampling_rate(vzd.SamplingRate.SR_44100)
+            self.game.set_audio_buffer_size(4 if self.frame_skip <= 4 else self.frame_skip)
+        self.add_game_vars_buffer = add_game_vars_buffer
+        if len(add_game_vars_buffer) != 0:
+            self.__add_game_variables(self.add_game_vars_buffer)
         if self.render_buffers is None:
             self.render_buffers = (1,) * (1 + self.has_depth_buffer + self.has_labels_buffer + self.has_automap_buffer +
-                                     self.has_audio_buffer + (self.num_position_buffer > 0) +
-                                     (self.num_health_buffer > 0) + (self.num_ammo_buffer > 0) +
-                                     (self.num_game_buffer > 0))
+                                          self.has_audio_buffer + self.game.get_available_game_variables_size())
 
     def __reset_buffers(self):
         """
         Set state of buffers to initial state set when `self.__set_buffers()` was called via the constructor.
         """
         self.__set_buffers(self.has_depth_buffer, self.has_labels_buffer, self.has_automap_buffer,
-                           self.has_audio_buffer, self.num_position_buffer, self.num_health_buffer,
-                           self.num_ammo_buffer, self.info_vars)
+                           self.has_audio_buffer, self.add_game_vars_buffer)
 
     def __init_game(self):
         """
@@ -458,7 +427,7 @@ class DoomEnv(gym.Env):
                 # Give each label a fixed color.
                 # We need to connect each pixel in labels_buffer to the corresponding
                 # id via `value``
-                labels_rgb = np.zeros((self.down_sample[0], self.down_sample[1], 3))
+                labels_rgb = np.zeros((self.game.get_screen_height(), self.game.get_screen_width(), 3))
                 labels_buffer = game_state.labels_buffer
                 for label in game_state.labels:
                     color = LABEL_COLORS[label.object_id % 256]
@@ -492,7 +461,7 @@ class DoomEnv(gym.Env):
             if self.rearrange_rgb:
                 buffer = buffer[:, :, ::-1]
         else:
-            buffer = np.repeat(np.expand_dims(buffer, axis=self.lift_axis), repeats=3, axis=self.lift_axis)
+            buffer = np.repeat(np.expand_dims(buffer, axis=-1), repeats=3, axis=-1)
         return buffer
 
     def __parse_binary_buttons(self, env_action, agent_action):
@@ -615,8 +584,8 @@ class DoomEnv(gym.Env):
             elif self.num_binary_buttons == 0:
                 return self.__get_continuous_action_space()
             else:
-                return gym.spaces.Dict({"binary": self.__get_binary_action_space(),
-                                        "continuous": self.__get_continuous_action_space()})
+                return spaces.Dict({"binary": self.__get_binary_action_space(),
+                                    "continuous": self.__get_continuous_action_space()})
         else:
             return spaces.Box(-np.inf, np.inf, (self.game.get_available_buttons_size(),))
 
@@ -638,43 +607,29 @@ class DoomEnv(gym.Env):
         buffer_idx = 1
         if self.has_depth_buffer:
             buffer_idx += 1
-            # channels = 1, shape: 1HW//HW1
-            self.game.set_depth_buffer_enabled(True)
+            # channels = 1, shape: 1HW//HW1//HW
             observation_space.append(self.__get_screen_box(not self.no_single_channel))
         if self.has_labels_buffer:
             buffer_idx += 1
-            # channels = 1, shape: 1HW//HW1
-            self.game.set_labels_buffer_enabled(True)
+            # channels = 1, shape: 1HW//HW1//HW
             observation_space.append(self.__get_screen_box(not self.no_single_channel))
         if self.has_automap_buffer:
             buffer_idx += 1
             # channels = C, shape: CHW//HWC
-            self.game.set_automap_buffer_enabled(True)
-            self.game.set_automap_mode(vzd.AutomapMode.OBJECTS)
-            self.game.set_automap_rotate(False)
             observation_space.append(self.__get_screen_box(channels))
         if self.has_audio_buffer:
             buffer_idx += 1
             # C = 1260 * audio buffer size, shape: C2
-            self.game.set_audio_buffer_enabled(True)
-            self.game.set_audio_sampling_rate(vzd.SamplingRate.SR_44100)
-            self.game.set_audio_buffer_size(4 if self.frame_skip <= 4 else self.frame_skip)
             if self.render_buffers[buffer_idx - 1] >= 2:
                 fill = False
                 if self.render_buffers[buffer_idx - 1] == 3:
                     fill = True
-                self.audio_visualizer = utils.DirectionalAudioVisualizer(self.game.get_audio_sampling_rate(), self.game.get_audio_buffer_size(), self.down_sample[0], self.down_sample[1], fill=fill)
+                self.audio_visualizer = vizdoomgym.utils.DirectionalAudioVisualizer(self.game.get_audio_sampling_rate(), self.game.get_audio_buffer_size(), self.image_size[0], self.image_size[1], fill=fill)
             else:
-                self.audio_visualizer = utils.FrequencyAudioVisualizer(self.game.get_audio_sampling_rate(), self.game.get_audio_buffer_size(), self.down_sample[0], self.down_sample[1])
+                self.audio_visualizer = vizdoomgym.utils.FrequencyAudioVisualizer(self.game.get_audio_sampling_rate(), self.game.get_audio_buffer_size(), self.image_size[0], self.image_size[1])
             observation_space.append(gym.spaces.Box(-1, 1, (self.frame_stack, 1260 * self.game.get_audio_buffer_size(), 2), dtype=np.float32 if self.to_torch else np.int16))
-        if self.num_position_buffer > 0:
-            observation_space.append(gym.spaces.Box(-np.inf, np.inf, (self.frame_stack, self.num_position_buffer), dtype=np.float32))
-        if self.num_health_buffer > 0:
-            observation_space.append(gym.spaces.Box(-np.inf, np.inf, (self.frame_stack, self.num_health_buffer), dtype=np.float32))
-        if self.num_ammo_buffer > 0:
-            observation_space.append(gym.spaces.Box(-np.inf, np.inf, (self.frame_stack, self.num_ammo_buffer), dtype=np.float32))
-        if self.num_game_buffer > 0:
-            observation_space.append(gym.spaces.Box(-np.inf, np.inf, (self.frame_stack, self.num_game_buffer), dtype=np.float32))
+        if self.game.get_available_game_variables_size() > 0:
+            observation_space.append(gym.spaces.Box(np.finfo(np.float32).min, np.finfo(np.float32).max, (self.frame_stack, self.game.get_available_game_variables_size()), dtype=np.float32))
 
         if len(observation_space) == 1:
             return observation_space[0]
@@ -688,7 +643,7 @@ class DoomEnv(gym.Env):
         channels_first = self.lift_axis == 0
         if self.to_torch:
             channels_first = True
-        return utils.get_box(self.frame_stack, self.down_sample[0], self.down_sample[1], channels, channels_first, self.raw_type)
+        return vizdoomgym.utils.get_box(self.frame_stack, self.image_size[0], self.image_size[1], channels, channels_first, self.raw_type)
 
     def __parse_screen_type(self):
         """
@@ -771,14 +726,8 @@ class DoomEnv(gym.Env):
                 observation.append(self.__transform_single_frame(state.automap_buffer))
             if self.has_audio_buffer:
                 observation.append(self.__transform_single_frame(state.audio_buffer, False))
-            if self.num_position_buffer:
-                observation.append(self.__transform_single_frame(np.array(state.game_variables[self.position_idxs]), False))
-            if self.num_health_buffer:
-                observation.append(self.__transform_single_frame(np.array(state.game_variables[self.health_idxs]), False))
-            if self.num_ammo_buffer:
-                observation.append(self.__transform_single_frame(np.array(state.game_variables[self.ammo_idxs]), False))
-            if self.num_game_buffer:
-                observation.append(self.__transform_single_frame(np.array(state.game_variables[self.game_var_idxs]), False))
+            if self.game.get_available_game_variables_size():
+                observation.append(self.__transform_single_frame(np.array(state.game_variables), False))
         else:
             obs_space = self.observation_space
             # there is no state in the terminal step, so a "zero observation is returned instead"
@@ -815,25 +764,25 @@ class DoomEnv(gym.Env):
 
     def __transform_single_frame(self, observation, image_frame=True):
         """
-        Down Samples if necessary and lifts dimensions of observations with no channels to have a channel from
+        Scales observation image if necessary and lifts dimensions of observations with no channels to have a channel from
         HW->1HW//HW1 depending on what axis the channels are according to the screen type and normalizes if necessary.
         """
         if image_frame:
-            observation = self.__downscale(observation)
+            observation = self.__scale_image_size(observation)
             observation = self.__lift(observation)
             observation = self.__normalize(observation)
         observation = self.__to_torch(observation, image_frame)
         return observation
 
-    def __downscale(self, observation):
+    def __scale_image_size(self, observation):
         """
-        downscale observation
+        scale observation image
         """
-        if self.down_sample != (self.game.get_screen_height(), self.game.get_screen_width()):
-            if self.screen_type == 0 and len(observation) > 2:
+        if self.image_size != (self.game.get_screen_height(), self.game.get_screen_width()):
+            if self.screen_type == 0 and len(observation.shape) > 2:
                 observation = observation.transpose(1, 2, 0)  # CHW -> HWC
-            observation = cv2.resize(observation, (self.down_sample[1], self.down_sample[0]), interpolation=cv2.INTER_LINEAR)
-            if self.screen_type == 0 and len(observation) > 2:
+            observation = cv2.resize(observation, (self.image_size[1], self.image_size[0]), interpolation=cv2.INTER_LINEAR)
+            if self.screen_type == 0 and len(observation.shape) > 2:
                 observation = observation.transpose(2, 0, 1)  # HWC -> CHW
         return observation
 
@@ -866,55 +815,12 @@ class DoomEnv(gym.Env):
             observation = torch.from_numpy(observation)
         return observation
 
-    def __parse_game_variables(self, add_info_vars):
-        """
-        parses game variables to determine index of POSITIONS/HEALTH/AMMO, any other game_vars and add_info_vars vars
-        incase the scenario config file already defined them.
-        """
-        game_variables = self.game.get_available_game_variables()
-
-        self.position_idxs = []
-        self.health_idxs = []
-        self.ammo_idxs = []
-        self.game_var_idxs = []
-        self.info_idxs = []
-
-        for i in range(len(game_variables)):
-            game_var = game_variables[i]
-            if game_var in POSITION_BUFFER:
-                self.position_idxs.append(i)
-            elif game_var in HEALTH_BUFFER:
-                self.health_idxs.append(i)
-            elif game_var in AMMO_BUFFER:
-                self.ammo_idxs.append(i)
-            else:
-                self.game_var_idxs.append(i)
-            # can be in both POSITIONS/HEALTH/AMMO and info section
-            if game_var in add_info_vars:
-                self.info_idxs.append(i)
-        return len(self.position_idxs), len(self.health_idxs), len(self.ammo_idxs), len(self.game_var_idxs), len(self.info_idxs)
-
     def __add_game_variables(self, variables):
         """
         adds variables to available game variables
         """
         for i in range(len(variables)):
             self.game.add_available_game_variable(variables[i])
-
-    def __get_info(self):
-        """
-        Get the info dictionary containing value of game variables given by self.info_vars.
-        As long as these vars were not already pre-specified in the scenario file, these vars are not included in the
-        observation, only in info.
-        """
-        if self.num_info_vars:
-            state = self.game.get_state()
-            info = dict()
-            for i in range(self.num_info_vars):
-                info[str(self.info_vars[i])] = np.array([state.game_variables[self.info_idxs[i]]])
-            return info
-        else:
-            return {}
 
     def __randomize_scenario(self):
         """

@@ -5,9 +5,15 @@ Highly Customizable Gym interface for ViZDoom.
 
 https://user-images.githubusercontent.com/42706447/175821475-e6702247-0257-4d5c-aef7-351b7b5adfb5.mp4
 
-
-
 <sub><sup>(Rendered Buffers: Screen, Depth, Label, Automap, Audio)</sub></sup>
+
+## Install
+
+```commandline
+git clone https://github.com/bebeal/VizDoomGym
+cd vizdoomgym
+pip install .
+```
 
 ## Features
 
@@ -18,9 +24,6 @@ https://user-images.githubusercontent.com/42706447/175821475-e6702247-0257-4d5c-
   * Labels Buffer
   * Automap Buffer
   * Audio Buffer
-  * Custom `POSITION_BUFFER` containing `[POSITION_X, POSITION_Y, POSITION_Z, ANGLE]`
-  * Custom `HEALTH_BUFFER` containing `[HEALTH, ARMOR]`
-  * Custom `AMMO_BUFFER` containing `[AMMO0, AMMO1, AMMO2, AMMO3, AMMO4, AMMO5, AMMO6, AMMO7, AMMO8, AMMO9]`
   * Any valid `GameVariable` ([List of GameVariables](https://github.com/mwydmuch/ViZDoom/blob/master/doc/Types.md#-gamevariable))
 * Can mix and match multiple different buffers
 * Can render any combination of buffers (even audio buffer)
@@ -74,12 +77,12 @@ Rendered View:
 * Example 3
 
 ```Python
-env = DoomEnv("basic_rgb_0000000_3_0.cfg", encode_action=True, to_torch=True, max_buttons_pressed=0, add_health_buffer=True, add_depth_buffer=True, add_audio_buffer=True)
+env = DoomEnv("basic_rgb_0000000_3_0.cfg", encode_action=True, to_torch=True, max_buttons_pressed=0, add_game_vars_buffer=[HEALTH, ARMOR], add_depth_buffer=True, add_audio_buffer=True)
 ```
 
 Observation Space Shape: `(1, 3, 240, 320), (1, 1, 240, 320), (1, 3, 240, 320), (1, 5040, 2), (1, 2)`
 
-<img src="https://render.githubusercontent.com/render/math?math=\sim"/> Buffers: `(screen, depth, automap, audio, health)`
+<img src="https://render.githubusercontent.com/render/math?math=\sim"/> Buffers: `(screen, depth, automap, audio, game_vars(health, armor))`
 
 Action Space: `MultiDiscrete([2 2 2])`
 
