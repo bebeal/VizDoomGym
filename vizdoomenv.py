@@ -1,3 +1,4 @@
+import itertools
 import warnings
 from os import path
 from collections import deque
@@ -506,13 +507,10 @@ class DoomEnv(gym.Env):
 
             if isinstance(agent_action, int):
                 agent_action = self.button_map[agent_action]
-            else:
-                agent_action = np.arange(self.num_binary_buttons)[np.array(agent_action) == 1]
 
             if len(agent_action) != 0:
                 # binary actions offset by number of delta buttons
-                agent_action = agent_action + self.num_delta_buttons
-                env_action[agent_action] = 1
+                env_action[self.num_delta_buttons:] = agent_action
 
     def __parse_delta_buttons(self, env_action, agent_action):
         """
@@ -525,8 +523,7 @@ class DoomEnv(gym.Env):
             if self.num_binary_buttons != 0:
                 agent_action = agent_action["continuous"]
 
-            for delta_idx in range(len(agent_action)):
-                env_action[delta_idx] = agent_action[delta_idx]
+            env_action[0:self.num_delta_buttons] = agent_action
 
     def __build_env_action(self, agent_action):
         """
@@ -580,11 +577,11 @@ class DoomEnv(gym.Env):
         if self.max_buttons_pressed == 0:
             button_space = gym.spaces.MultiDiscrete([2,] * self.num_binary_buttons)
         else:
-            button_map = []
-            for k in range(self.max_buttons_pressed + 1):
-                button_map += self.__actions_using_k_buttons(k)
-            button_space = gym.spaces.Discrete(len(button_map))
-            self.button_map = [np.array([i for i in range(button.bit_length()) if button & (1 << i)]) for button in button_map]
+            self.button_map = [
+                np.array(list(action)) for action in itertools.product((0, 1), repeat=self.num_binary_buttons)
+                if (self.max_buttons_pressed >= sum(action) >= 0)
+            ]
+            button_space = gym.spaces.Discrete(len(self.button_map))
         return button_space
 
     def __get_continuous_action_space(self):
@@ -593,25 +590,6 @@ class DoomEnv(gym.Env):
         return continuous action space: Box(-max_value, max_value, (num_delta_buttons,), np.float32).
         """
         return gym.spaces.Box(-np.inf, np.inf, (self.num_delta_buttons,), dtype=np.float32,)
-
-    def __actions_using_k_buttons(self, k):
-        """
-        Only used if encode_action.
-        return a list of all combinations of k set bits in self.num_binary_buttons places.
-        Representing k number of buttons pressed, with an encoding using a total number of
-        self.num_binary_buttons buttons defined.
-        EX:
-        self.num_binary_buttons=4, k=0 -> [0] ([0000]).
-        self.num_binary_buttons=4, k=1 -> [1, 2, 4, 8] ([0001, 0010, 0100, 1000]).
-        self.num_binary_buttons=3, k=2 -> [3, 5, 6] ([011, 101, 110]).
-        """
-        button_map = [(1 << k) - 1]
-        finish = button_map[-1] << (self.num_binary_buttons - k)
-        while button_map[-1] != finish:
-            t = (button_map[-1] | (button_map[-1] - 1)) + 1
-            v = t | ((((t & -t) // (button_map[-1] & -button_map[-1])) >> 1) - 1)
-            button_map.append(v)
-        return button_map
 
     def __get_action_space(self):
         """
