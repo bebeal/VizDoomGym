@@ -42,8 +42,7 @@ env = DoomEnv("basic_g8_0000000_0_3.cfg", encode_action=True, no_single_channel=
 
 Observation Space Shape: `(4, 240, 320)`
 
-<img src="https://render.githubusercontent.com/render/math?math=\sim"/>
-Buffers: `(screen)`
+<img src="https://render.githubusercontent.com/render/math?math=\sim"/> Buffers: `(screen)`
 
 Action Space: `Box([-inf -inf -inf], [inf inf inf], (3,), float32)`
 
@@ -59,8 +58,7 @@ env = DoomEnv("basic_g8_0000000_4_4.cfg", encode_action=True, to_torch=True, add
 
 Observation Space Shape: `(2, 1, 240, 320), (2, 1, 240, 320)`
 
-<img src="https://render.githubusercontent.com/render/math?math=\sim"/>
-Buffers: `(screen, labels)`
+<img src="https://render.githubusercontent.com/render/math?math=\sim"/> Buffers: `(screen, labels)`
 
 Action Space: `Dict(binary:Discrete(15), continuous:Box([-inf -inf -inf -inf], [inf inf inf inf], (4,), float32))`
 
@@ -77,9 +75,7 @@ env = DoomEnv("basic_rgb_0000000_3_0.cfg", encode_action=True, to_torch=True, ma
 
 Observation Space Shape: `(1, 3, 240, 320), (1, 1, 240, 320), (1, 3, 240, 320), (1, 5040, 2), (1, 2)`
 
-<img src="https://render.githubusercontent.com/render/math?math=\sim"/>
-
-Buffers: `(screen, depth, automap, audio, health)`
+<img src="https://render.githubusercontent.com/render/math?math=\sim"/> Buffers: `(screen, depth, automap, audio, health)`
 
 Action Space: `MultiDiscrete([2 2 2])`
 
