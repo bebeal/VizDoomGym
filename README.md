@@ -1,12 +1,9 @@
 # VizDoomGym
 Highly Customizable Gym interface for ViZDoom.
 
-https://user-images.githubusercontent.com/42706447/173233122-ac993c3a-fdeb-4137-ba5a-47b59f7ce14f.mp4
-
 https://user-images.githubusercontent.com/42706447/175816675-52da2192-e5b3-4ceb-94e3-f3b75db23186.mp4
 
-
-<sub><sup>(Rendered Buffers: Screen, Depth, Label, Automap)</sub></sup>
+<sub><sup>(Rendered Buffers: Screen, Depth, Label, Automap, Audio)</sub></sup>
 
 ## Features
 
@@ -52,7 +49,7 @@ Action Space: `Box([-inf -inf -inf], [inf inf inf], (3,), float32)`
 
 Rendered View:
 
-<img src="0.png"/>
+![0](https://user-images.githubusercontent.com/42706447/175820497-0bfe13b1-4d33-4916-b465-d92b35f4dc2c.png)
 
 * Example 1
 
@@ -69,7 +66,8 @@ Action Space: `Dict(binary:Discrete(15), continuous:Box([-inf -inf -inf -inf], [
 
 Rendered View:
 
-<img src="1.png"/>
+![1](https://user-images.githubusercontent.com/42706447/175820499-411b9a30-2c01-4a33-b20b-96c6966a6478.png)
+
 
 * Example 3
 
@@ -80,13 +78,14 @@ env = DoomEnv("basic_rgb_0000000_3_0.cfg", encode_action=True, to_torch=True, ma
 Observation Space Shape: `(1, 3, 240, 320), (1, 1, 240, 320), (1, 3, 240, 320), (1, 5040, 2), (1, 2)`
 
 <img src="https://render.githubusercontent.com/render/math?math=\sim"/>
+
 Buffers: `(screen, depth, automap, audio, health)`
 
 Action Space: `MultiDiscrete([2 2 2])`
 
 Rendered View:
 
-<img src="2.png"/>
+![2](https://user-images.githubusercontent.com/42706447/175820511-773b6f45-dcb8-43e3-8462-b6a7f5c2e4fb.png)
 
 ## Parameter Documentation
 
