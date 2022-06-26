@@ -457,7 +457,7 @@ class DoomEnv(gym.Env):
                 # Give each label a fixed color.
                 # We need to connect each pixel in labels_buffer to the corresponding
                 # id via `value``
-                labels_rgb = np.zeros((self.game.get_screen_height(), self.game.get_screen_width(), 3))
+                labels_rgb = np.zeros((self.down_sample[0], self.down_sample[1], 3))
                 labels_buffer = game_state.labels_buffer
                 for label in game_state.labels:
                     color = LABEL_COLORS[label.object_id % 256]
