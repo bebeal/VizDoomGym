@@ -584,7 +584,7 @@ class DoomEnv(gym.Env):
             for k in range(self.max_buttons_pressed + 1):
                 button_map += self.__actions_using_k_buttons(k)
             button_space = gym.spaces.Discrete(len(button_map))
-            self.button_map = [np.array([i for i in range(v.bit_length()) if v & (1 << i)]) for v in button_map]
+            self.button_map = [np.array([i for i in range(button.bit_length()) if button & (1 << i)]) for button in button_map]
         return button_space
 
     def __get_continuous_action_space(self):
