@@ -1,112 +1,191 @@
 # VizDoomGym
-Custom Gym Wrapper for ViZDoom
+Highly Customizable Gym interface for ViZDoom.
 
 https://user-images.githubusercontent.com/42706447/173233122-ac993c3a-fdeb-4137-ba5a-47b59f7ce14f.mp4
 
-<sub><sup>(Buffers: Screen, Depth, Label, Automap)</sub></sup>
+https://user-images.githubusercontent.com/42706447/175816675-52da2192-e5b3-4ceb-94e3-f3b75db23186.mp4
+
+
+<sub><sup>(Rendered Buffers: Screen, Depth, Label, Automap)</sub></sup>
 
 ## Features
 
-* All ViZDoom Screen Types
-* Addition of multiple buffers
+* All ViZDoom Screen Formats (RGB24, GRAY8, CRCGCB, CBCGCR, RGBA32, ARGB32, BGRA32, ABGR32, DOOM_256_COLORS8)
+* Multiple observation options and rendering
+  * Screen Buffer
   * Depth Buffer
   * Labels Buffer
   * Automap Buffer
   * Audio Buffer
-  * Custom Positions Buffer
-    * `GameVariable.POSITION_X`
-    * `GameVariable.POSITION_Y`
-    * `GameVariable.POSITION_Z`
-    * `GameVariable.ANGLE`
-  * Custom Health Buffer
-    * `GameVariable.HEALTH`
-    * `GameVariable.ARMOR`
-  * Custom Ammo Buffer
-    * `GameVariable.AMMO0`
-    * `GameVariable.AMMO1`
-    * `GameVariable.AMMO2`
-    * `GameVariable.AMMO3`
-    * `GameVariable.AMMO4`
-    * `GameVariable.AMMO5`
-    * `GameVariable.AMMO6`
-    * `GameVariable.AMMO7`
-    * `GameVariable.AMMO8`
-    * `GameVariable.AMMO9`
-* Frame Skipping
+  * Custom `POSITION_BUFFER` containing `[POSITION_X, POSITION_Y, POSITION_Z, ANGLE]`
+  * Custom `HEALTH_BUFFER` containing `[HEALTH, ARMOR]`
+  * Custom `AMMO_BUFFER` containing `[AMMO0, AMMO1, AMMO2, AMMO3, AMMO4, AMMO5, AMMO6, AMMO7, AMMO8, AMMO9]`
+  * Any valid `GameVariable` ([List of GameVariables](https://github.com/mwydmuch/ViZDoom/blob/master/doc/Types.md#-gamevariable))
+* Can mix and match multiple different buffers
+* Can render any combination of buffers (even audio buffer)
 * Frame Stacking
+* Frame Skipping
 * Down Sampling
-* ViZDoom Delta Buttons
-* Multiple Buttons At Once
-* PyTorch Tensor Wrapper
+* All possible buttons: Binary + Delta Buttons
+* Can press/use any combination of buttons at once
+* PyTorch Tensor Wrapper Option
+* Image Buffer Normalization
+* Probabilistically randomize scenario per call to `reset()` if given a list of scenarios
+* Probabilistically randomize asset per call to `reset()` if given a list of assets
+* Probabilistically randomize `doom_skill` i.e. difficulty per call to `reset()`
 
-## Examples
 
-### Basic Example
+## Examples of Possible Action/Observation Spaces
 
-```Python
-env = DoomEnv("basic.cfg")
-```
-
-Observation Space Shape: `(1, 3, 240, 320)`
-
-Action Space: `Discrete(3)`, automatically one hot encodes it for you, just give index
-
-### Delta Buttons Example
+* Example 0
 
 ```Python
-env = DoomEnv("basic_with_delta.cfg")  # Assumes environment has a delta button specified
+env = DoomEnv("basic_g8_0000000_0_3.cfg", encode_action=True, no_single_channel=True, frame_stack=4)
 ```
 
-Observation Space Shape: `(1, 3, 240, 320)`
+Observation Space Shape: `(4, 240, 320)`
 
-Action Space: `Box(3)`, you must fully specify yourself (one hot encode it)
+<img src="https://render.githubusercontent.com/render/math?math=\sim"/>
+Buffers: `(screen)`
 
-### Frame Stacking Example
+Action Space: `Box([-inf -inf -inf], [inf inf inf], (3,), float32)`
+
+Rendered View:
+
+<img src="0.png"/>
+
+* Example 1
 
 ```Python
-env = DoomEnv("basic.cfg", frame_stack=4)
+env = DoomEnv("basic_g8_0000000_4_4.cfg", encode_action=True, to_torch=True, add_labels_buffer=True, max_buttons_pressed=3, frame_stack=2)
 ```
 
-Observation Space Shape: `(4, 3, 240, 320)`
+Observation Space Shape: `(2, 1, 240, 320), (2, 1, 240, 320)`
 
-Action Space: `Discrete(3)`
+<img src="https://render.githubusercontent.com/render/math?math=\sim"/>
+Buffers: `(screen, labels)`
 
-### Multiple Buffers + Frame Stacking Example
+Action Space: `Dict(binary:Discrete(15), continuous:Box([-inf -inf -inf -inf], [inf inf inf inf], (4,), float32))`
+
+Rendered View:
+
+<img src="1.png"/>
+
+* Example 3
 
 ```Python
-env = DoomEnv("basic.cfg", add_depth=True, frame_stack=4)
+env = DoomEnv("basic_rgb_0000000_3_0.cfg", encode_action=True, to_torch=True, max_buttons_pressed=0, add_health_buffer=True, add_depth_buffer=True, add_audio_buffer=True)
 ```
 
-Observation Space Shapes: `Tuple((4, 3, 240, 320), (4, 1, 240, 320))` <img src="https://render.githubusercontent.com/render/math?math=\sim"> Buffers: `Tuple(screen, depth)`
+Observation Space Shape: `(1, 3, 240, 320), (1, 1, 240, 320), (1, 3, 240, 320), (1, 5040, 2), (1, 2)`
 
-Action Space: `Discrete(3)`
+<img src="https://render.githubusercontent.com/render/math?math=\sim"/>
+Buffers: `(screen, depth, automap, audio, health)`
 
-### Down Sampling + Multiple Buffers + Frame Stacking
+Action Space: `MultiDiscrete([2 2 2])`
+
+Rendered View:
+
+<img src="2.png"/>
+
+## Parameter Documentation
 
 ```Python
-env = DoomEnv("basic.cfg", down_sample=(120, 160), add_depth=True, add_automap=True, add_audio=True, frame_stack=4) 
+"""
+Highly Customizable Gym interface for ViZDoom.
+
+:param scenarios:           Scenario files
+:param assets:              Wad assets. Default: None.
+                            By default, uses "freedoom2.wad" assets
+:param ini:                 .ini settings (engine settings, including key bindings, etc). Default None.
+                            If None: by default VizDoom will use and create `_vizdoom.ini` in your working
+                            directory (if it does not exist).
+:param no_single_channel:   Flattens images with 1 color channel to be (H, W). Default: True. This allows for
+                            one to use frame_stack as a theoretical color channel and make the images returned
+                            (frame_stack, H, W).
+:param frame_skip:          Number of frames to skip per call to `step()`. Default 1.
+:param frame_stack:         Number of frames stacked and returned in observation when `step()` is called.
+                            Default 1.
+                            Discards the single oldest frame, and appends on a single fresh frame per call to
+                            `step()`
+:param down_sample:         Resolution of image buffer, overrides value set in scenario file.
+                            Default: (None, None).
+                            If None for either value or both, uses the values specified in the scenario file.
+:param to_torch:            Whether to change the numpy observations to torch tensors. Default: True.
+:param normalize:           Whether to cast image buffers to float32 and divide values by 255. Default: True.
+:param max_buttons_pressed: Defines the number of binary buttons that can be selected at once. Default: 1.
+                            Only used if encode_action, otheriwise ignored. Should be >= 0.
+                            If < 0 a RuntimeError is raised.
+                            If == 0, the binary action space becomes MultiDiscrete([2] * num_binary_buttons)
+                            and [0, num_binary_buttons] number of binary buttons can be selected.
+                            If > 0, the binary action space becomes Discrete(2**n)
+                            and [0, max_buttons_pressed] number of binary buttons can be selected.
+:param encode_action:       Determines self.action_space, dependent on which available_game_actions() are
+                            specified by the scenario file, and what valid actions that can be sent to
+                            `step(action)`.
+                            Default: False. (Not used by default).
+                            If True:
+                                Action space can be a single one of binary/continuous action space, or a Dict
+                                containing both.
+                                "binary":
+                                    if max_buttons_pressed == 0: MultiDiscrete([2] * num_binary_buttons)
+                                    if max_buttons_pressed > 1: Discrete(n) where n is the number of environment actions that have
+                                                                0 <= max_buttons_pressed bits set
+                                "continuous":
+                                    Box(-max_value, max_value, (num_delta_buttons,), np.float32)
+                            else:
+                                Action space is Box(-np.inf, np.inf, ({n},), np.float32) where {n} is defined
+                                to be the number of available_game_buttons as specified by the scenario file.
+                                And the action sent to `step()` is directly sent to the VizDoom environment.
+:param add_depth_buffer:    Whether to add the depth_buffer to the observation_space. Default: False.
+                            If True: overrides value set in scenario file,
+                            else: uses setting specified in scenario file.
+:param add_labels_buffer:   Whether to add the labels_buffer to the observation_space. Default: False.
+                            If True: overrides value set in scenario file,
+                            else: uses setting specified in scenario file.
+:param add_automap_buffer:  Whether to add the automap_buffer to the observation_space. Default: False.
+                            If True: overrides value set in scenario file,
+                            else: uses setting specified in scenario file.
+:param add_audio_buffer:    Whether to add the audio_buffer to the observation_space. Default: False.
+                            If True: overrides value set in scenario file,
+                            else: uses setting specified in scenario file.
+:param add_position_buffer: Whether to add the POSITION_BUFFER to the observation_space. Default: False.
+                            If True: add them as game_variables
+                            else: uses game_variables specified in scenario file.
+:param add_health_buffer:   Whether to add the HEALTH_BUFFER to the observation_space. Default: False.
+                            If True: add them as game_variables
+                            else: uses game_variables specified in scenario file.
+:param add_ammo_buffer:     Whether to add the AMMO_BUFFER to the observation_space. Default: False.
+                            If True: add them as game_variables
+                            else: uses game_variables specified in scenario file.
+:param add_info_vars:       Enables and adds these game_variables to the game state, passed back via `info` in
+                            `step()`. Default: ().
+                            Unless these variables are already specified in the scenario file this will not add
+                            these variables to the observation, only the info.
+:param shuffle_scenarios:   Probability to randomize the scenario per call to `reset()`. Default: 0.
+                            (0 probability = no shuffling, 1 = shuffle every call to `reset()`)
+:param shuffle_assets:      Probability to randomize the assets per call to `reset()`. Default: 0.
+                            (0 probability = no shuffling, 1 = shuffle every call to `reset()`)
+:param shuffle_difficulty:  Probability to randomize the doom_skill difficulty per call to `reset()`.
+                            Default: 0.
+                            (0 probability = no shuffling, 1 = shuffle every call to `reset()`)
+:param render_buffers:      Determines which buffers to render when calling `env.render()`. Default None.
+                            If None, renders all activated buffers.
+                            Otherwise, tuple containing 0/1 indicates whether or not to render the buffer at
+                            that index. Ex: If Depth, Automap, and Audio buffer are enabled you can send a tuple
+                            specifying which ones should be rendered, i.e: (1, 0, 1) would result in the depth
+                            buffer, and audio buffer being rendered.
+                            As a special case for rendering the audio buffer:
+                            1: line wave option
+                            2: circular wave option
+                            3: filled circular wave option
+"""
 ```
 
-Observation Space Shapes: `Tuple((4, 3, 120, 160), (4, 1, 120, 160), (4, 3, 120, 160), (4, 5040, 2))` <img src="https://render.githubusercontent.com/render/math?math=\sim"> Buffers: `Tuple(screen, depth, automap, audio)`
+## TODO:
+* Fix audio visualization
+* Remove unnecessary storage of variables
 
-Action Space: `Discrete(3)`
-
-
-### Different ViZDoom Type (Gray Scaled) + Down Sampling + Multiple Buffers + Frame Stacking + Frame Skipping
-
-```Python
-env = DoomEnv("basic_GRAY8.cfg", down_sample=(120, 160), add_depth=True, add_automap=True, add_audio=True, frame_stack=4, frame_skip=4) 
-```
-
-Observation Space Shapes: `Tuple((4, 120, 160, 1), (4, 120, 160, 1), (4, 120, 160, 1), (4, 5040, 2))` <img src="https://render.githubusercontent.com/render/math?math=\sim"> Buffers: `Tuple(screen, depth, automap, audio)`
-
-Action Space: `Discrete(3)`
-
-
-### TODO:
-* Better FrameStacking for multiple buffers, avoid loops
-* Cleanup screen format stuff
-
-### References
+## References
 * [VizDoom](https://github.com/mwydmuch/ViZDoom)
 * [Alternative VizDoomGym](https://github.com/shakenes/vizdoomgym)

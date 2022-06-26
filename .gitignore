@@ -5,3 +5,6 @@ src/scenarios
 **/_vizdoom/*
 **/_vizdoom.ini
 scenarios
+assets
+openal-soft
+test.py
