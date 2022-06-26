@@ -110,7 +110,7 @@ Highly Customizable Gym interface for ViZDoom.
                             Default 1.
                             Discards the single oldest frame, and appends on a single fresh frame per call to
                             `step()`
-:param down_sample:         Resolution of image buffer, overrides value set in scenario file.
+:param image_size:          Resolution of image buffer, overrides value set in scenario file.
                             Default: (None, None).
                             If None for either value or both, uses the values specified in the scenario file.
 :param to_torch:            Whether to change the numpy observations to torch tensors. Default: True.
@@ -127,9 +127,9 @@ Highly Customizable Gym interface for ViZDoom.
                             `step(action)`.
                             Default: False. (Not used by default).
                             If True:
-                                Action space can be a single one of binary/continuous action space, or a Dict
+                                Action space can be a single one of binary/continuous action space, or a Tuple
                                 containing both.
-                                "binary":
+                                "binary"":
                                     if max_buttons_pressed == 0: MultiDiscrete([2] * num_binary_buttons)
                                     if max_buttons_pressed > 1: Discrete(n) where n is the number of environment actions that have
                                                                 0 <= max_buttons_pressed bits set
@@ -151,17 +151,8 @@ Highly Customizable Gym interface for ViZDoom.
 :param add_audio_buffer:    Whether to add the audio_buffer to the observation_space. Default: False.
                             If True: overrides value set in scenario file,
                             else: uses setting specified in scenario file.
-:param add_position_buffer: Whether to add the POSITION_BUFFER to the observation_space. Default: False.
-                            If True: add them as game_variables
-                            else: uses game_variables specified in scenario file.
-:param add_health_buffer:   Whether to add the HEALTH_BUFFER to the observation_space. Default: False.
-                            If True: add them as game_variables
-                            else: uses game_variables specified in scenario file.
-:param add_ammo_buffer:     Whether to add the AMMO_BUFFER to the observation_space. Default: False.
-                            If True: add them as game_variables
-                            else: uses game_variables specified in scenario file.
-:param add_info_vars:       Enables and adds these game_variables to the game state, passed back via `info` in
-                            `step()`. Default: ().
+:param add_game_vars_buffer:Enables and adds these game_variables to the game state, passed back via an
+                            observation buffer in `step()`. Default: ().
                             Unless these variables are already specified in the scenario file this will not add
                             these variables to the observation, only the info.
 :param shuffle_scenarios:   Probability to randomize the scenario per call to `reset()`. Default: 0.
